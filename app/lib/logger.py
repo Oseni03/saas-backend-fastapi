@@ -7,7 +7,10 @@ from app.config import settings
 
 
 def configure_logging() -> None:
-    shared_processors: list[structlog.types.Processor] = [
+    """Configure structlog + standard logging."""
+    
+    # Processors used by structlog.get_logger() (for manual logging)
+    structlog_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
@@ -16,25 +19,22 @@ def configure_logging() -> None:
     ]
 
     if settings.is_production:
-        # JSON logs in production
-        processors = [
-            *shared_processors,
+        structlog_processors.extend([
             structlog.processors.dict_tracebacks,
             structlog.processors.JSONRenderer(),
-        ]
+        ])
         formatter = structlog.stdlib.ProcessorFormatter(
-            processors=[structlog.stdlib.ProcessorFormatter.wrap_for_formatter, *processors],
+            processor=structlog.processors.JSONRenderer(),   # Only renderer here
         )
     else:
-        # Pretty logs in dev
-        processors = [
-            *shared_processors,
-            structlog.dev.ConsoleRenderer(colors=True),
-        ]
+        structlog_processors.append(
+            structlog.dev.ConsoleRenderer(colors=True)
+        )
         formatter = structlog.stdlib.ProcessorFormatter(
-            processors=[structlog.stdlib.ProcessorFormatter.wrap_for_formatter, *processors],
+            processor=structlog.dev.ConsoleRenderer(colors=True),
         )
 
+    # Set up standard library logging
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
 
@@ -42,11 +42,19 @@ def configure_logging() -> None:
     root_logger.addHandler(handler)
     root_logger.setLevel(logging.INFO)
 
+    # Remove any existing handlers to prevent duplication
+    root_logger.handlers.clear()
+    root_logger.addHandler(handler)
+
+    # Configure structlog
     structlog.configure(
-        processors=processors,
+        processors=[
+            *structlog_processors[:-1],           # All processors except the final renderer
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
         wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
 
