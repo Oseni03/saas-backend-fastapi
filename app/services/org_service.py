@@ -78,6 +78,14 @@ class OrganizationService:
 
     # ── Members ───────────────────────────────────────────────────────
 
+    async def list_members(self, org: Organization, actor: User) -> list[Membership]:
+        await self._require_role(actor.id, org.id, MemberRole.MEMBER)
+        from sqlalchemy import select
+        result = await self.db.execute(
+            select(Membership).where(Membership.organization_id == org.id)
+        )
+        return list(result.scalars().all())
+
     async def update_member_role(
         self, org: Organization, target_user_id: str, new_role: MemberRole, actor: User
     ) -> Membership:
@@ -123,6 +131,10 @@ class OrganizationService:
         )
 
     # ── Invitations ───────────────────────────────────────────────────
+
+    async def list_invitations(self, org: Organization, actor: User) -> list[Invitation]:
+        await self._require_role(actor.id, org.id, MemberRole.ADMIN)
+        return await self.inv_repo.list_by_org(org.id)
 
     async def invite_member(
         self, org: Organization, email: str, role: MemberRole, actor: User

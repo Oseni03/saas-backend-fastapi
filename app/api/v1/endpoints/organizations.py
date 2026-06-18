@@ -63,6 +63,17 @@ async def delete_org(org_id: str, current_user: CurrentUser, db: DBDep) -> None:
 
 # ── Members ───────────────────────────────────────────────────────────
 
+@router.get("/{org_id}/invitations", response_model=list[MembershipResponse])
+async def list_invitations(
+    org_id: str, current_user: CurrentUser, db: DBDep
+) -> list[MembershipResponse]:
+    svc = OrganizationService(db)
+    org = await OrganizationRepository(db).get_by_id(org_id)
+    if not org:
+        raise NotFoundError("Organization")
+    invitations = await svc.list_invitations(org, current_user)
+    return [MembershipResponse.model_validate(i) for i in invitations]
+
 @router.post("/{org_id}/invitations", status_code=status.HTTP_201_CREATED)
 async def invite_member(
     org_id: str, payload: InviteMemberRequest, current_user: CurrentUser, db: DBDep
@@ -81,6 +92,16 @@ async def accept_invitation(
 ) -> OrgResponse:
     org = await OrganizationService(db).accept_invitation(payload.token, current_user)
     return OrgResponse.model_validate(org)
+
+
+@router.get("/{org_id}/members", response_model=list[MembershipResponse])
+async def list_members(org_id: str, current_user: CurrentUser, db: DBDep) -> list[MembershipResponse]:
+    svc = OrganizationService(db)
+    org = await OrganizationRepository(db).get_by_id(org_id)
+    if not org:
+        raise NotFoundError("Organization")
+    members = await svc.list_members(org, current_user)
+    return [MembershipResponse.model_validate(m) for m in members]
 
 
 @router.patch("/{org_id}/members/{user_id}", response_model=MembershipResponse)

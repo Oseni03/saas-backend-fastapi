@@ -4,17 +4,17 @@ A production-ready FastAPI backend with authentication, multi-tenant organizatio
 
 ## Features
 
-| Feature | Details |
-|---|---|
-| **Auth** | Register, login, JWT access + refresh tokens, email verification, password reset, Google/GitHub OAuth, MFA-ready |
-| **Organizations** | Multi-tenant with member roles (Owner, Admin, Member, Viewer), invite-by-email flow |
-| **Billing** | Stripe Checkout, Billing Portal, webhook handling, plan sync (Free / Pro / Enterprise) |
-| **Email** | Resend integration — verification, password reset, invitations, welcome email |
-| **Notifications** | In-app notification center with read/unread state |
-| **Audit Log** | Every sensitive action is logged with actor, resource, and IP |
-| **Observability** | Structured logging (structlog), Sentry error tracking, request ID tracing |
-| **Rate Limiting** | SlowAPI with per-IP limits, configurable via env |
-| **Security** | bcrypt passwords, hashed one-time tokens, CORS, request ID middleware |
+| Feature           | Details                                                                                                          |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Auth**          | Register, login, JWT access + refresh tokens, email verification, password reset, Google/GitHub OAuth, MFA-ready |
+| **Organizations** | Multi-tenant with member roles (Owner, Admin, Member, Viewer), invite-by-email flow                              |
+| **Billing**       | Stripe Checkout, Billing Portal, webhook handling, plan sync (Free / Pro / Enterprise)                           |
+| **Email**         | Resend integration — verification, password reset, invitations, welcome email                                    |
+| **Notifications** | In-app notification center with read/unread state                                                                |
+| **Audit Log**     | Every sensitive action is logged with actor, resource, and IP                                                    |
+| **Observability** | Structured logging (structlog), Sentry error tracking, request ID tracing                                        |
+| **Rate Limiting** | SlowAPI with per-IP limits, configurable via env                                                                 |
+| **Security**      | bcrypt passwords, hashed one-time tokens, CORS, request ID middleware                                            |
 
 ## Project Structure
 
@@ -32,60 +32,123 @@ app/
 
 ## Quick Start
 
+### 1️⃣ Clone the Repository
+
 ```bash
-# 1. Clone and configure
-cp .env.example .env
-# Edit .env with your secrets
+git clone <your-repo-url>
+cd <project-folder>
+```
 
-# 2. Start services
-make dev
+---
 
-# 3. Run migrations
-make db-migrate
+## 2️⃣ Create Virtual Environment
 
-# 4. Seed dev data
-make db-seed
+```bash
+python -m venv venv
+source venv/bin/activate        # macOS/Linux
+venv\Scripts\activate           # Windows
+```
 
-# 5. Visit docs
-open http://localhost:8000/docs
+---
+
+### 3️⃣ Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## ⚙️ Environment Variables
+
+Create a `.env` file in the root directory:
+
+```env
+# ── App ──────────────────────────────────────────────
+APP_NAME="FastAPI SaaS"
+APP_ENV=development                  # development | staging | production
+APP_SECRET_KEY=changeme-use-openssl-rand-hex-32
+APP_BASE_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:3000
+
+# ── Database ──────────────────────────────────────────
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/saas_db
+
+# ── Redis ─────────────────────────────────────────────
+REDIS_URL=redis://localhost:6379/0
+
+# ── Auth / JWT ────────────────────────────────────────
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=30
+
+# ── OAuth ─────────────────────────────────────────────
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# ── Email (Resend) ────────────────────────────────────
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxx
+EMAIL_FROM="noreply@yoursaas.com"
+EMAIL_FROM_NAME="Your SaaS"
+
+# ── Billing (Paystack) ────────────────────────────────
+PAYSTACK_SECRET_KEY=sk_test_xxxxxxxxxxxxxxxxxxxx
+PAYSTACK_WEBHOOK_SECRET=your-webhook-secret-phrase
+PAYSTACK_PRO_PLAN_CODE=PLN_xxxxxxxxxxxxxxxxxxxx
+PAYSTACK_ENTERPRISE_PLAN_CODE=PLN_xxxxxxxxxxxxxxxxxxxx
+
+# ── Sentry ────────────────────────────────────────────
+SENTRY_DSN=
+
+# ── Rate Limiting ─────────────────────────────────────
+RATE_LIMIT_PER_MINUTE=60
+```
+
+Then run:
+
+```bash
+fastapi run main.py
 ```
 
 ## Key API Endpoints
 
 ```
+
 POST /api/v1/auth/register
 POST /api/v1/auth/login
 POST /api/v1/auth/refresh
 POST /api/v1/auth/verify-email
 POST /api/v1/auth/forgot-password
 POST /api/v1/auth/reset-password
-GET  /api/v1/auth/me
+GET /api/v1/auth/me
 
-GET    /api/v1/users/me
-PATCH  /api/v1/users/me
-POST   /api/v1/users/me/change-password
+GET /api/v1/users/me
+PATCH /api/v1/users/me
+POST /api/v1/users/me/change-password
 DELETE /api/v1/users/me
 
-POST   /api/v1/organizations
-GET    /api/v1/organizations
-GET    /api/v1/organizations/{id}
-PATCH  /api/v1/organizations/{id}
+POST /api/v1/organizations
+GET /api/v1/organizations
+GET /api/v1/organizations/{id}
+PATCH /api/v1/organizations/{id}
 DELETE /api/v1/organizations/{id}
-POST   /api/v1/organizations/{id}/invitations
-POST   /api/v1/organizations/invitations/accept
-PATCH  /api/v1/organizations/{id}/members/{user_id}
+POST /api/v1/organizations/{id}/invitations
+POST /api/v1/organizations/invitations/accept
+PATCH /api/v1/organizations/{id}/members/{user_id}
 DELETE /api/v1/organizations/{id}/members/{user_id}
 
 POST /api/v1/billing/organizations/{id}/checkout
 POST /api/v1/billing/organizations/{id}/portal
 POST /api/v1/billing/webhooks/stripe
 
-GET  /api/v1/notifications
+GET /api/v1/notifications
 POST /api/v1/notifications/{id}/read
 POST /api/v1/notifications/read-all
 
 GET /api/v1/health
 GET /api/v1/ready
+
 ```
 
 ## Development Commands

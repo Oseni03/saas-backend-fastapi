@@ -84,6 +84,7 @@ class BillingService:
                     "metadata": {
                         "organization_id": org.id,
                         "plan": plan.value,
+                        "cancel_action": callback_url + "?status=cancelled",
                     },
                 },
             )
