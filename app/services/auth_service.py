@@ -22,6 +22,7 @@ from app.core.security import (
     verify_password,
     verify_refresh_token,
     verify_token_hash,
+    revoke_refresh_token,
 )
 from app.lib.email import send_password_reset_email, send_verification_email, send_welcome_email
 from app.lib.logger import logger
@@ -83,7 +84,7 @@ class AuthService:
         from jose import JWTError
 
         try:
-            user_id = verify_refresh_token(refresh_token)
+            user_id = await verify_refresh_token(refresh_token)
         except JWTError as exc:
             raise UnauthorizedError("Invalid or expired refresh token.") from exc
 
@@ -92,6 +93,23 @@ class AuthService:
             raise UnauthorizedError("User not found or inactive.")
 
         return self._issue_tokens(user.id)
+    
+    # ── Logout ────────────────────────────────────────────────────────
+
+    async def logout(self, refresh_token: str) -> None:
+        """Invalidate a refresh token (blacklisting)."""
+        from jose import JWTError
+
+        try:
+            user_id = await verify_refresh_token(refresh_token)
+            # Revoke the token (implementation depends on your security module)
+            revoke_refresh_token(refresh_token)   # e.g., add to Redis blacklist or DB
+            logger.info("auth.logout", user_id=user_id)
+        except JWTError:
+            # Silent fail for security (don't reveal if token was valid)
+            pass
+        except Exception as exc:
+            logger.warning("auth.logout_failed", error=str(exc))
 
     # ── Email verification ────────────────────────────────────────────
 

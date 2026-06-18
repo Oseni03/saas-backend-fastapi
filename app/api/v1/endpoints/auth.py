@@ -9,6 +9,7 @@ from app.schemas.auth import (
     RegisterRequest,
     TokenPair,
     VerifyEmailRequest,
+    LogoutRequest,
 )
 from app.schemas.user import UserResponse
 from app.services.auth_service import AuthService
@@ -27,6 +28,19 @@ async def register(payload: RegisterRequest, db: DBDep) -> UserResponse:
 async def login(payload: LoginRequest, db: DBDep) -> TokenPair:
     """Authenticate with email + password. Returns access + refresh tokens."""
     return await AuthService(db).login(payload)
+
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+async def logout(
+    payload: LogoutRequest,
+    db: DBDep,
+):
+    """
+    Logout by invalidating the refresh token.
+    """
+    auth_service = AuthService(db)
+    await auth_service.logout(payload.refresh_token)
+    return {"message": "Successfully logged out."}
 
 
 @router.post("/refresh", response_model=TokenPair)

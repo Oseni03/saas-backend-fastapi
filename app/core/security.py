@@ -6,6 +6,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.config import settings
+from lib.redis import set_with_ttl, get_value
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -62,13 +63,58 @@ def verify_access_token(token: str) -> str:
     return sub
 
 
-def verify_refresh_token(token: str) -> str:
-    """Returns user_id or raises JWTError."""
+async def verify_refresh_token(token: str) -> str:
+    """Returns user_id or raises JWTError. Also checks blacklist."""
+    # First check if token is blacklisted
+    if (await is_token_blacklisted(token)):  # Note: this makes the function async
+        raise JWTError("Token has been revoked")
+
     payload = decode_token(token)
     if payload.get("type") != "refresh":
         raise JWTError("Not a refresh token")
     sub: str = payload["sub"]
     return sub
+
+
+# ── Token Revocation (Blacklisting) ───────────────────────────────────
+
+
+async def revoke_refresh_token(refresh_token: str) -> None:
+    """
+    Blacklist a refresh token using the centralized Redis helpers.
+    """
+    try:
+        # Decode to get accurate expiration time
+        payload = decode_token(refresh_token)
+        exp_timestamp = payload.get("exp")
+
+        if exp_timestamp:
+            expires_in = max(0, exp_timestamp - int(datetime.now(UTC).timestamp()))
+        else:
+            expires_in = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600  # fallback
+
+        if expires_in > 0:
+            await set_with_ttl(
+                key=f"token_blacklist:{refresh_token}",
+                value="revoked",
+                ttl_seconds=expires_in,
+            )
+    except Exception as e:
+        # Log but don't fail logout
+        import logging
+        logging.warning(f"Failed to revoke refresh token: {e}")
+
+
+async def is_token_blacklisted(token: str) -> bool:
+    """Check if a token has been blacklisted using Redis helper."""
+    try:
+        result = await get_value(f"token_blacklist:{token}")
+        return result is not None
+    except Exception:
+        # Fail open (allow the token) if Redis is down
+        import logging
+        logging.error("Redis blacklist check failed - allowing token")
+        return False
 
 
 # ── One-time tokens (email verification, invites, password reset) ─────
