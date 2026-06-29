@@ -18,6 +18,7 @@ from app.api.deps import CurrentUser, DBDep
 from app.core.exceptions import BadRequestError, UnauthorizedError
 from app.core.security import verify_password
 from app.repositories.user_repo import UserRepository
+from app.schemas.auth import TokenPair
 
 router = APIRouter(prefix="/mfa", tags=["mfa"])
 
@@ -80,7 +81,7 @@ async def disable_mfa(code: str, current_user: CurrentUser, db: DBDep) -> None:
 
 
 @router.post("/validate")
-async def validate_mfa_code(code: str, current_user: CurrentUser) -> dict:
+async def validate_mfa_code(code: str, current_user: CurrentUser) -> TokenPair:
     """
     Validate a TOTP code during login.
     Frontend calls this after obtaining a short-lived 'mfa_pending' token.

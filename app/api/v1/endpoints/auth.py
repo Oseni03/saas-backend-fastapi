@@ -1,12 +1,15 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, BackgroundTasks, status
 
 from app.api.deps import CurrentUser, DBDep
+from app.lib.email import send_verification_email
+from app.lib.logger import logger
 from app.schemas.auth import (
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
     RefreshRequest,
     RegisterRequest,
+    SignupResponse,
     TokenPair,
     VerifyEmailRequest,
     LogoutRequest,
@@ -17,11 +20,24 @@ from app.services.auth_service import AuthService
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest, db: DBDep) -> UserResponse:
-    """Register a new user. Sends a verification email."""
-    user = await AuthService(db).register(payload)
-    return UserResponse.model_validate(user)
+@router.post("/register", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
+async def register(payload: RegisterRequest, db: DBDep, background_tasks: BackgroundTasks) -> SignupResponse:
+    """Register a new user. Sends a verification email. Returns user + tokens."""
+    user, tokens, verification_token = await AuthService(db).register(payload)
+    background_tasks.add_task(_send_verification_email, user.email, user.full_name, verification_token)
+    return SignupResponse(
+        user=UserResponse.model_validate(user),
+        access_token=tokens.access_token,
+        refresh_token=tokens.refresh_token,
+        token_type=tokens.token_type,
+    )
+
+
+def _send_verification_email(to: str, full_name: str | None, token: str) -> None:
+    try:
+        send_verification_email(to, full_name or "", token)
+    except Exception:
+        logger.exception("Failed to send verification email", to=to)
 
 
 @router.post("/login", response_model=TokenPair)

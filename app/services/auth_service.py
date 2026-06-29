@@ -24,7 +24,7 @@ from app.core.security import (
     verify_token_hash,
     revoke_refresh_token,
 )
-from app.lib.email import send_password_reset_email, send_verification_email, send_welcome_email
+from app.lib.email import send_password_reset_email, send_welcome_email
 from app.lib.logger import logger
 from app.lib.ulid import new_ulid
 from app.models.user import OAuthProvider, User
@@ -43,7 +43,7 @@ class AuthService:
 
     # ── Register ──────────────────────────────────────────────────────
 
-    async def register(self, payload: RegisterRequest) -> User:
+    async def register(self, payload: RegisterRequest) -> tuple[User, TokenPair, str]:
         existing = await self.user_repo.get_by_email(payload.email)
         if existing:
             raise ConflictError("An account with this email already exists.")
@@ -60,9 +60,8 @@ class AuthService:
         )
         await self.user_repo.create(user)
 
-        send_verification_email(user.email, user.full_name or "", verification_token)
         logger.info("auth.registered", user_id=user.id, email=user.email)
-        return user
+        return user, self._issue_tokens(user.id), verification_token
 
     # ── Login ─────────────────────────────────────────────────────────
 
@@ -103,7 +102,7 @@ class AuthService:
         try:
             user_id = await verify_refresh_token(refresh_token)
             # Revoke the token (implementation depends on your security module)
-            revoke_refresh_token(refresh_token)   # e.g., add to Redis blacklist or DB
+            await revoke_refresh_token(refresh_token)   # e.g., add to Redis blacklist or DB
             logger.info("auth.logout", user_id=user_id)
         except JWTError:
             # Silent fail for security (don't reveal if token was valid)
