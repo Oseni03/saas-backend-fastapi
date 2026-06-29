@@ -12,6 +12,7 @@ from app.schemas.organization import (
     OrgResponse,
     OrgUpdateRequest,
     UpdateMemberRoleRequest,
+    InvitationResponse,
 )
 from app.services.org_service import OrganizationService
 
@@ -66,13 +67,13 @@ async def delete_org(org_id: str, current_user: CurrentUser, db: DBDep) -> None:
 @router.get("/{org_id}/invitations", response_model=list[MembershipResponse])
 async def list_invitations(
     org_id: str, current_user: CurrentUser, db: DBDep
-) -> list[MembershipResponse]:
+) -> list[InvitationResponse]:
     svc = OrganizationService(db)
     org = await OrganizationRepository(db).get_by_id(org_id)
     if not org:
         raise NotFoundError("Organization")
     invitations = await svc.list_invitations(org, current_user)
-    return [MembershipResponse.model_validate(i) for i in invitations]
+    return [InvitationResponse.model_validate(i) for i in invitations]
 
 @router.post("/{org_id}/invitations", status_code=status.HTTP_201_CREATED)
 async def invite_member(
@@ -84,6 +85,18 @@ async def invite_member(
         raise NotFoundError("Organization")
     await svc.invite_member(org, payload.email, payload.role, current_user)
     return {"message": "Invitation sent."}
+
+
+@router.delete("/{org_id}/invitations/{invitation_id}")
+async def revoke_invitation(
+    org_id: str, invitation_id: str, current_user: CurrentUser, db: DBDep
+) -> dict:
+    svc = OrganizationService(db)
+    org = await OrganizationRepository(db).get_by_id(org_id)
+    if not org:
+        raise NotFoundError("Organization")
+    await svc.revoke_invitation(org, invitation_id, current_user)
+    return {"message": "Invitation revoked."}
 
 
 @router.post("/invitations/accept", response_model=OrgResponse)
@@ -101,7 +114,18 @@ async def list_members(org_id: str, current_user: CurrentUser, db: DBDep) -> lis
     if not org:
         raise NotFoundError("Organization")
     members = await svc.list_members(org, current_user)
-    return [MembershipResponse.model_validate(m) for m in members]
+    return [
+        MembershipResponse(
+            user_id=m.user_id,
+            organization_id=m.organization_id,
+            role=m.role,
+            created_at=m.created_at,
+            name=u.full_name,
+            email=u.email,
+            avatar_url=u.avatar_url,
+        )
+        for m, u in members
+    ]
 
 
 @router.patch("/{org_id}/members/{user_id}", response_model=MembershipResponse)
@@ -117,7 +141,16 @@ async def update_member_role(
     if not org:
         raise NotFoundError("Organization")
     membership = await svc.update_member_role(org, user_id, payload.role, current_user)
-    return MembershipResponse.model_validate(membership)
+    await db.refresh(membership, ["user"])
+    return MembershipResponse(
+        user_id=membership.user_id,
+        organization_id=membership.organization_id,
+        role=membership.role,
+        created_at=membership.created_at,
+        name=membership.user.full_name if membership.user else None,
+        email=membership.user.email if membership.user else None,
+        avatar_url=membership.user.avatar_url if membership.user else None,
+    )
 
 
 @router.delete("/{org_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

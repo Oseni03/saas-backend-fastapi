@@ -78,13 +78,15 @@ class OrganizationService:
 
     # ── Members ───────────────────────────────────────────────────────
 
-    async def list_members(self, org: Organization, actor: User) -> list[Membership]:
+    async def list_members(self, org: Organization, actor: User) -> list[tuple[Membership, User]]:
         await self._require_role(actor.id, org.id, MemberRole.MEMBER)
         from sqlalchemy import select
         result = await self.db.execute(
-            select(Membership).where(Membership.organization_id == org.id)
+            select(Membership, User)
+            .join(User, Membership.user_id == User.id)
+            .where(Membership.organization_id == org.id)
         )
-        return list(result.scalars().all())
+        return list(result.all())
 
     async def update_member_role(
         self, org: Organization, target_user_id: str, new_role: MemberRole, actor: User
@@ -182,6 +184,29 @@ class OrganizationService:
             role=role.value,
         )
         logger.info("org.invitation_sent", org_id=org.id, email=email, actor_id=actor.id)
+        return invitation
+
+    async def revoke_invitation(
+        self, org: Organization, invitation_id: str, actor: User
+    ) -> Invitation:
+        await self._require_role(actor.id, org.id, MemberRole.ADMIN)
+
+        invitation = await self.inv_repo.get_by_id(invitation_id)
+        if not invitation or invitation.organization_id != org.id:
+            raise NotFoundError("Invitation")
+        if invitation.status != InvitationStatus.PENDING:
+            raise BadRequestError(f"Cannot revoke an invitation that is {invitation.status.value}.")
+
+        invitation.status = InvitationStatus.REVOKED
+        await self.inv_repo.save(invitation)
+
+        logger.info(
+            "org.invitation_revoked",
+            org_id=org.id,
+            invitation_id=invitation_id,
+            email=invitation.email,
+            actor_id=actor.id,
+        )
         return invitation
 
     async def accept_invitation(self, token: str, user: User) -> Organization:

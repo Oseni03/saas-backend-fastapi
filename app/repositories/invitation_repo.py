@@ -14,6 +14,12 @@ class InvitationRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_id(self, invitation_id: str) -> Invitation | None:
+        result = await self.db.execute(
+            select(Invitation).where(Invitation.id == invitation_id)
+        )
+        return result.scalar_one_or_none()
+
     async def get_pending_by_email_and_org(
         self, email: str, org_id: str
     ) -> Invitation | None:
