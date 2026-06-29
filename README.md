@@ -44,9 +44,9 @@ cd <project-folder>
 ## 2️⃣ Create Virtual Environment
 
 ```bash
-python -m venv venv
+uv venv
 source venv/bin/activate        # macOS/Linux
-venv\Scripts\activate           # Windows
+.venv\Scripts\activate           # Windows
 ```
 
 ---
@@ -54,7 +54,7 @@ venv\Scripts\activate           # Windows
 ### 3️⃣ Install Dependencies
 
 ```bash
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 ---
@@ -105,7 +105,13 @@ SENTRY_DSN=
 RATE_LIMIT_PER_MINUTE=60
 ```
 
-Then run:
+### 4️⃣ Run Migrations
+
+```bash
+alembic upgrade head
+```
+
+### 5️⃣ Start the Server
 
 ```bash
 fastapi run main.py
@@ -154,13 +160,14 @@ GET /api/v1/ready
 ## Development Commands
 
 ```bash
-make test          # Run tests with coverage
-make lint          # Ruff lint
-make format        # Ruff format
-make typecheck     # mypy
-make db-revision msg="add foo table"  # New migration
-make db-migrate    # Apply migrations
-make db-seed       # Seed local data
+alembic revision --autogenerate -m "describe_change"  # New migration
+alembic upgrade head                                   # Apply migrations
+alembic downgrade -1                                   # Roll back last migration
+python scripts/seed.py                                 # Seed local data
+pytest -v --cov=app --cov-report=term-missing          # Run tests
+ruff check app tests                                   # Lint
+ruff format app tests                                  # Format
+mypy app                                               # Type check
 ```
 
 ## Architecture Decisions

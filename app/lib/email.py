@@ -13,7 +13,8 @@ resend.api_key = settings.RESEND_API_KEY
 
 def _send(to: str, subject: str, html: str) -> None:
     if not settings.RESEND_API_KEY:
-        logger.warning("email.skipped", reason="RESEND_API_KEY not set", to=to, subject=subject)
+        logger.info("email.logged", to=to, subject=subject, html=html)
+        print(f"\n{'='*60}\nTO: {to}\nSUBJECT: {subject}\nHTML:\n{html}\n{'='*60}\n")
         return
     try:
         resend.Emails.send(

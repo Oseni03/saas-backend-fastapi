@@ -38,7 +38,8 @@ class User(Base, TimestampMixin):
 
     # OAuth
     oauth_provider: Mapped[OAuthProvider] = mapped_column(
-        Enum(OAuthProvider), default=OAuthProvider.LOCAL, nullable=False
+        Enum(OAuthProvider, values_callable=lambda obj: [e.value for e in obj]),
+        default=OAuthProvider.LOCAL, nullable=False
     )
     oauth_provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
 

@@ -64,9 +64,19 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
     app.add_middleware(SlowAPIMiddleware)
 
+    origins = [str(settings.FRONTEND_URL)]
+    if not settings.is_production:
+        origins += [
+            str(settings.APP_BASE_URL),
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+        ]
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(settings.FRONTEND_URL)],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
