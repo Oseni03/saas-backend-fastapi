@@ -1,14 +1,13 @@
+import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import settings
-from lib.redis import set_with_ttl, get_value
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from app.lib.redis import set_with_ttl, get_value
 
 ALGORITHM = "HS256"
 
@@ -16,12 +15,17 @@ ALGORITHM = "HS256"
 # ── Password ──────────────────────────────────────────────────────────
 
 
+def _prehash(password: str) -> bytes:
+    """bcrypt is limited to 72 bytes; SHA-256 pre-hash avoids that constraint."""
+    return hashlib.sha256(password.encode()).hexdigest().encode()
+
+
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(_prehash(password), bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(_prehash(plain), hashed.encode())
 
 
 # ── JWT ───────────────────────────────────────────────────────────────
