@@ -35,7 +35,9 @@ class Invitation(Base, TimestampMixin):
         String(26), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     status: Mapped[InvitationStatus] = mapped_column(
-        Enum(InvitationStatus), default=InvitationStatus.PENDING, nullable=False
+        Enum(InvitationStatus, values_callable=lambda obj: [e.value for e in obj]),
+        default=InvitationStatus.PENDING,
+        nullable=False,
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

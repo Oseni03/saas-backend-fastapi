@@ -28,7 +28,9 @@ class Organization(Base, TimestampMixin):
     logo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     plan: Mapped[PlanTier] = mapped_column(
-        Enum(PlanTier), default=PlanTier.FREE, nullable=False
+        Enum(PlanTier, values_callable=lambda obj: [e.value for e in obj]),
+        default=PlanTier.FREE,
+        nullable=False,
     )
 
     # Paystack

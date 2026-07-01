@@ -1,7 +1,8 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, BackgroundTasks, status
 
 from app.api.deps import CurrentUser, DBDep, VerifiedUser
 from app.core.exceptions import NotFoundError
+from app.lib.email import send_invitation_email
 from app.models.membership import MemberRole
 from app.repositories.org_repo import OrganizationRepository
 from app.schemas.organization import (
@@ -64,7 +65,7 @@ async def delete_org(org_id: str, current_user: CurrentUser, db: DBDep) -> None:
 
 # ── Members ───────────────────────────────────────────────────────────
 
-@router.get("/{org_id}/invitations", response_model=list[MembershipResponse])
+@router.get("/{org_id}/invitations", response_model=list[InvitationResponse])
 async def list_invitations(
     org_id: str, current_user: CurrentUser, db: DBDep
 ) -> list[InvitationResponse]:
@@ -77,13 +78,25 @@ async def list_invitations(
 
 @router.post("/{org_id}/invitations", status_code=status.HTTP_201_CREATED)
 async def invite_member(
-    org_id: str, payload: InviteMemberRequest, current_user: CurrentUser, db: DBDep
+    org_id: str,
+    payload: InviteMemberRequest,
+    current_user: CurrentUser,
+    db: DBDep,
+    background_tasks: BackgroundTasks,
 ) -> dict:
     svc = OrganizationService(db)
     org = await OrganizationRepository(db).get_by_id(org_id)
     if not org:
         raise NotFoundError("Organization")
-    await svc.invite_member(org, payload.email, payload.role, current_user)
+    invitation, raw_token = await svc.invite_member(org, payload.email, payload.role, current_user)
+    background_tasks.add_task(
+        send_invitation_email,
+        to=payload.email,
+        invited_by=current_user.full_name or current_user.email,
+        org_name=org.name,
+        token=raw_token,
+        role=payload.role.value,
+    )
     return {"message": "Invitation sent."}
 
 

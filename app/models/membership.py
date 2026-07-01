@@ -35,7 +35,9 @@ class Membership(Base, TimestampMixin):
         index=True,
     )
     role: Mapped[MemberRole] = mapped_column(
-        Enum(MemberRole), default=MemberRole.MEMBER, nullable=False
+        Enum(MemberRole, values_callable=lambda obj: [e.value for e in obj]),
+        default=MemberRole.MEMBER,
+        nullable=False,
     )
 
     # Relationships

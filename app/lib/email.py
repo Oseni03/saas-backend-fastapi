@@ -64,19 +64,22 @@ def send_password_reset_email(to: str, token: str) -> None:
 def send_invitation_email(
     to: str, invited_by: str, org_name: str, token: str, role: str
 ) -> None:
-    url = f"{settings.FRONTEND_URL}/invitations/accept?token={token}"
-    _send(
-        to=to,
-        subject=f"{invited_by} invited you to {org_name}",
-        html=f"""
-        <h2>You've been invited!</h2>
-        <p><strong>{invited_by}</strong> has invited you to join
-           <strong>{org_name}</strong> as a <strong>{role}</strong>.</p>
-        <p><a href="{url}" style="padding:10px 20px;background:#4F46E5;color:white;
-           border-radius:6px;text-decoration:none;">Accept Invitation</a></p>
-        <p>This invitation expires in 7 days.</p>
-        """,
-    )
+    try:
+        url = f"{settings.FRONTEND_URL}/invitations/accept?token={token}"
+        _send(
+            to=to,
+            subject=f"{invited_by} invited you to {org_name}",
+            html=f"""
+            <h2>You've been invited!</h2>
+            <p><strong>{invited_by}</strong> has invited you to join
+            <strong>{org_name}</strong> as a <strong>{role}</strong>.</p>
+            <p><a href="{url}" style="padding:10px 20px;background:#4F46E5;color:white;
+            border-radius:6px;text-decoration:none;">Accept Invitation</a></p>
+            <p>This invitation expires in 7 days.</p>
+            """,
+        )
+    except:
+        logger.exception("Failed to send verification email", to=to)
 
 
 def send_welcome_email(to: str, full_name: str) -> None:

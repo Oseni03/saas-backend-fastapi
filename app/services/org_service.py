@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, ConflictError, ForbiddenError, NotFoundError
 from app.core.security import generate_secure_token, hash_token
-from app.lib.email import send_invitation_email
 from app.lib.logger import logger
 from app.lib.ulid import new_ulid
 from app.models.invitation import Invitation, InvitationStatus
@@ -140,17 +139,15 @@ class OrganizationService:
 
     async def invite_member(
         self, org: Organization, email: str, role: MemberRole, actor: User
-    ) -> Invitation:
+    ) -> tuple[Invitation, str]:
         await self._require_role(actor.id, org.id, MemberRole.ADMIN)
 
         email = email.lower().strip()
 
-        # Prevent duplicate pending invitations
         existing = await self.inv_repo.get_pending_by_email_and_org(email, org.id)
         if existing:
             raise ConflictError("A pending invitation already exists for this email.")
 
-        # Check if already a member
         existing_user = await self.user_repo.get_by_email(email)
         if existing_user:
             from sqlalchemy import select
@@ -176,15 +173,8 @@ class OrganizationService:
         )
         await self.inv_repo.create(invitation)
 
-        send_invitation_email(
-            to=email,
-            invited_by=actor.full_name or actor.email,
-            org_name=org.name,
-            token=raw_token,
-            role=role.value,
-        )
         logger.info("org.invitation_sent", org_id=org.id, email=email, actor_id=actor.id)
-        return invitation
+        return invitation, raw_token
 
     async def revoke_invitation(
         self, org: Organization, invitation_id: str, actor: User
