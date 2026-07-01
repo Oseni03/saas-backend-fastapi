@@ -19,6 +19,7 @@ from app.repositories.invitation_repo import InvitationRepository
 from app.repositories.org_repo import OrganizationRepository
 from app.repositories.user_repo import UserRepository
 from app.schemas.organization import OrgCreateRequest, OrgUpdateRequest
+from app.services.membership_policy import MembershipPolicy
 
 
 class OrganizationService:
@@ -246,14 +247,7 @@ class OrganizationService:
         if not membership:
             raise ForbiddenError("You are not a member of this organization.")
 
-        role_rank = {
-            MemberRole.VIEWER: 0,
-            MemberRole.MEMBER: 1,
-            MemberRole.ADMIN: 2,
-            MemberRole.OWNER: 3,
-        }
-        if role_rank[membership.role] < role_rank[min_role]:
-            raise ForbiddenError("You do not have sufficient permissions.")
+        MembershipPolicy.ensure_role(membership, min_role)
         return membership
 
     async def _unique_slug(self, base: str) -> str:
