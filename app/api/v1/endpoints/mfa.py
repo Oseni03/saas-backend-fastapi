@@ -15,6 +15,7 @@ import pyotp
 from fastapi import APIRouter, status
 
 from app.api.deps import CurrentUser, DBDep
+from app.config import project
 from app.core.exceptions import BadRequestError, UnauthorizedError
 from app.core.security import verify_password
 from app.repositories.user_repo import UserRepository
@@ -24,7 +25,7 @@ router = APIRouter(prefix="/mfa", tags=["mfa"])
 
 
 def _get_totp(secret: str, email: str) -> pyotp.TOTP:
-    return pyotp.TOTP(secret, issuer="FastAPI SaaS", name=email)
+    return pyotp.TOTP(secret, issuer=project.mfa.issuer_name, name=email)
 
 
 @router.post("/setup")
@@ -58,7 +59,7 @@ async def verify_mfa(code: str, current_user: CurrentUser, db: DBDep) -> None:
         raise BadRequestError("MFA is already enabled.")
 
     totp = _get_totp(current_user.mfa_secret, current_user.email)
-    if not totp.verify(code, valid_window=1):
+    if not totp.verify(code, valid_window=project.mfa.valid_window):
         raise BadRequestError("Invalid or expired TOTP code.")
 
     current_user.mfa_enabled = True
@@ -72,7 +73,7 @@ async def disable_mfa(code: str, current_user: CurrentUser, db: DBDep) -> None:
         raise BadRequestError("MFA is not enabled on your account.")
 
     totp = _get_totp(current_user.mfa_secret, current_user.email)
-    if not totp.verify(code, valid_window=1):
+    if not totp.verify(code, valid_window=project.mfa.valid_window):
         raise UnauthorizedError("Invalid TOTP code.")
 
     current_user.mfa_enabled = False
@@ -91,12 +92,12 @@ async def validate_mfa_code(code: str, current_user: CurrentUser) -> TokenPair:
         raise BadRequestError("MFA is not enabled on your account.")
 
     totp = _get_totp(current_user.mfa_secret, current_user.email)
-    if not totp.verify(code, valid_window=1):
+    if not totp.verify(code, valid_window=project.mfa.valid_window):
         raise UnauthorizedError("Invalid or expired TOTP code.")
 
     from app.core.security import create_access_token, create_refresh_token
-    return {
-        "access_token": create_access_token(current_user.id),
-        "refresh_token": create_refresh_token(current_user.id),
-        "token_type": "bearer",
-    }
+    return TokenPair(
+        access_token=create_access_token(current_user.id),
+        refresh_token=create_refresh_token(current_user.id),
+        token_type=project.token_type,
+    )

@@ -15,7 +15,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from app.api.v1.router import router as v1_router
-from app.config import settings
+from app.config import project, settings
 from app.db.session import engine
 from app.lib.logger import configure_logging, logger
 
@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         sentry_sdk.init(
             dsn=settings.SENTRY_DSN,
             environment=settings.APP_ENV,
-            traces_sample_rate=0.1,
+            traces_sample_rate=project.sentry_traces_sample_rate,
         )
         logger.info("sentry.initialized")
 
@@ -43,8 +43,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=[f"{settings.RATE_LIMIT_PER_MINUTE}/minute"],
+    default_limits=[f"{settings.RATE_LIMIT_PER_MINUTE}/{project.rate_limit_period}"],
 )
+
+CORS_DEV_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
 
 
 # ── App factory ───────────────────────────────────────────────────────
@@ -52,7 +59,7 @@ limiter = Limiter(
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.APP_NAME,
-        version="1.0.0",
+        version=project.version,
         docs_url="/docs" if not settings.is_production else None,
         redoc_url="/redoc" if not settings.is_production else None,
         openapi_url="/openapi.json" if not settings.is_production else None,
@@ -66,20 +73,15 @@ def create_app() -> FastAPI:
 
     origins = [str(settings.FRONTEND_URL)]
     if not settings.is_production:
-        origins += [
-            str(settings.APP_BASE_URL),
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:5173",
-        ]
+        origins += [str(settings.APP_BASE_URL)]
+        origins += CORS_DEV_ORIGINS
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=list(project.cors.methods),
+        allow_headers=list(project.cors.allowed_headers),
     )
 
     from app.middleware.logging_middleware import RequestLoggingMiddleware

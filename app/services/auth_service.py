@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import project
 from app.core.exceptions import (
     BadRequestError,
     ConflictError,
@@ -199,5 +200,5 @@ class AuthService:
         return TokenPair(
             access_token=create_access_token(user_id),
             refresh_token=create_refresh_token(user_id),
-            token_type="bearer",
+            token_type=project.token_type,
         )

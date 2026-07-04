@@ -5,7 +5,7 @@ All email types are defined here as typed functions.
 
 import resend
 
-from app.config import settings
+from app.config import project, settings
 from app.lib.logger import logger
 
 resend.api_key = settings.RESEND_API_KEY
@@ -41,7 +41,7 @@ def send_verification_email(to: str, full_name: str, token: str) -> None:
         <p>Click the link below to verify your email address:</p>
         <p><a href="{url}" style="padding:10px 20px;background:#4F46E5;color:white;
            border-radius:6px;text-decoration:none;">Verify Email</a></p>
-        <p>This link expires in 24 hours.</p>
+        <p>This link expires in {project.expiry.verification_hours} hours.</p>
         """,
     )
 
@@ -53,7 +53,7 @@ def send_password_reset_email(to: str, token: str) -> None:
         subject=f"Reset your password — {settings.APP_NAME}",
         html=f"""
         <h2>Password Reset</h2>
-        <p>Click the link below to reset your password. This link expires in 1 hour.</p>
+        <p>Click the link below to reset your password. This link expires in {project.expiry.password_reset_hours} hour(s).</p>
         <p><a href="{url}" style="padding:10px 20px;background:#4F46E5;color:white;
            border-radius:6px;text-decoration:none;">Reset Password</a></p>
         <p>If you didn't request this, you can safely ignore this email.</p>
@@ -75,7 +75,7 @@ def send_invitation_email(
             <strong>{org_name}</strong> as a <strong>{role}</strong>.</p>
             <p><a href="{url}" style="padding:10px 20px;background:#4F46E5;color:white;
             border-radius:6px;text-decoration:none;">Accept Invitation</a></p>
-            <p>This invitation expires in 7 days.</p>
+            <p>This invitation expires in {project.expiry.invitation_days} days.</p>
             """,
         )
     except:

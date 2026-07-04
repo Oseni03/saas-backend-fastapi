@@ -3,13 +3,14 @@ import sys
 
 import structlog
 
-from app.config import settings
+from app.config import project, settings
 
 
 def configure_logging() -> None:
     """Configure structlog + standard logging."""
     
-    # Processors used by structlog.get_logger() (for manual logging)
+    log_level = logging.DEBUG if settings.is_development else logging.INFO
+
     structlog_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
@@ -24,7 +25,7 @@ def configure_logging() -> None:
             structlog.processors.JSONRenderer(),
         ])
         formatter = structlog.stdlib.ProcessorFormatter(
-            processor=structlog.processors.JSONRenderer(),   # Only renderer here
+            processor=structlog.processors.JSONRenderer(),
         )
     else:
         structlog_processors.append(
@@ -34,25 +35,22 @@ def configure_logging() -> None:
             processor=structlog.dev.ConsoleRenderer(colors=True),
         )
 
-    # Set up standard library logging
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
     root_logger.addHandler(handler)
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(log_level)
 
-    # Remove any existing handlers to prevent duplication
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
 
-    # Configure structlog
     structlog.configure(
         processors=[
-            *structlog_processors[:-1],           # All processors except the final renderer
+            *structlog_processors[:-1],
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+        wrapper_class=structlog.make_filtering_bound_logger(log_level),
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,

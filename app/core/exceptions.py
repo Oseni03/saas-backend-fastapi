@@ -1,3 +1,4 @@
+from app.config import project
 from fastapi import HTTPException, status
 
 
@@ -28,7 +29,7 @@ class UnauthorizedError(AppError):
         super().__init__(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=detail,
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": project.auth_scheme},
         )
 
 

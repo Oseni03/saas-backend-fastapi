@@ -13,7 +13,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import RedirectResponse
 
 from app.api.deps import DBDep
-from app.config import settings
+from app.config import project, settings
 from app.core.exceptions import BadRequestError
 from app.models.user import OAuthProvider
 from app.schemas.auth import TokenPair
@@ -23,11 +23,6 @@ router = APIRouter(prefix="/auth/oauth", tags=["oauth"])
 
 # ── Google ────────────────────────────────────────────────────────────
 
-GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
-GOOGLE_SCOPES = "openid email profile"
-
 
 @router.get("/google")
 async def google_login() -> RedirectResponse:
@@ -36,27 +31,27 @@ async def google_login() -> RedirectResponse:
         raise BadRequestError("Google OAuth is not configured.")
     params = {
         "client_id": settings.GOOGLE_CLIENT_ID,
-        "redirect_uri": f"{settings.APP_BASE_URL}/api/v1/auth/oauth/google/callback",
+        "redirect_uri": f"{settings.APP_BASE_URL}{project.api_prefix}/auth/oauth/google/callback",
         "response_type": "code",
-        "scope": GOOGLE_SCOPES,
-        "access_type": "offline",
+        "scope": project.oauth.google.scope,
+        "access_type": project.oauth.google.access_type,
     }
     query = "&".join(f"{k}={v}" for k, v in params.items())
-    return RedirectResponse(f"{GOOGLE_AUTH_URL}?{query}")
+    return RedirectResponse(f"{project.oauth.google.auth_url}?{query}")
 
 
 @router.get("/google/callback", response_model=TokenPair)
 async def google_callback(code: str = Query(...), db: DBDep = None) -> TokenPair:  # type: ignore[assignment]
     """Exchange auth code for user info and issue tokens."""
+    redirect_uri = f"{settings.APP_BASE_URL}{project.api_prefix}/auth/oauth/google/callback"
     async with httpx.AsyncClient() as client:
-        # Exchange code for access token
         token_res = await client.post(
-            GOOGLE_TOKEN_URL,
+            project.oauth.google.token_url,
             data={
                 "code": code,
                 "client_id": settings.GOOGLE_CLIENT_ID,
                 "client_secret": settings.GOOGLE_CLIENT_SECRET,
-                "redirect_uri": f"{settings.APP_BASE_URL}/api/v1/auth/oauth/google/callback",
+                "redirect_uri": redirect_uri,
                 "grant_type": "authorization_code",
             },
         )
@@ -64,9 +59,8 @@ async def google_callback(code: str = Query(...), db: DBDep = None) -> TokenPair
             raise BadRequestError("Failed to exchange Google auth code.")
         access_token = token_res.json().get("access_token")
 
-        # Fetch user info
         userinfo_res = await client.get(
-            GOOGLE_USERINFO_URL,
+            project.oauth.google.userinfo_url,
             headers={"Authorization": f"Bearer {access_token}"},
         )
         if userinfo_res.status_code != 200:
@@ -84,11 +78,6 @@ async def google_callback(code: str = Query(...), db: DBDep = None) -> TokenPair
 
 # ── GitHub ────────────────────────────────────────────────────────────
 
-GITHUB_AUTH_URL = "https://github.com/login/oauth/authorize"
-GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
-GITHUB_USER_URL = "https://api.github.com/user"
-GITHUB_EMAIL_URL = "https://api.github.com/user/emails"
-
 
 @router.get("/github")
 async def github_login() -> RedirectResponse:
@@ -97,40 +86,39 @@ async def github_login() -> RedirectResponse:
         raise BadRequestError("GitHub OAuth is not configured.")
     params = {
         "client_id": settings.GITHUB_CLIENT_ID,
-        "redirect_uri": f"{settings.APP_BASE_URL}/api/v1/auth/oauth/github/callback",
-        "scope": "read:user user:email",
+        "redirect_uri": f"{settings.APP_BASE_URL}{project.api_prefix}/auth/oauth/github/callback",
+        "scope": project.oauth.github.scope,
     }
     query = "&".join(f"{k}={v}" for k, v in params.items())
-    return RedirectResponse(f"{GITHUB_AUTH_URL}?{query}")
+    return RedirectResponse(f"{project.oauth.github.auth_url}?{query}")
 
 
 @router.get("/github/callback", response_model=TokenPair)
 async def github_callback(code: str = Query(...), db: DBDep = None) -> TokenPair:  # type: ignore[assignment]
     """Exchange auth code for user info and issue tokens."""
+    redirect_uri = f"{settings.APP_BASE_URL}{project.api_prefix}/auth/oauth/github/callback"
     async with httpx.AsyncClient() as client:
         token_res = await client.post(
-            GITHUB_TOKEN_URL,
-            headers={"Accept": "application/json"},
+            project.oauth.github.token_url,
+            headers={"Accept": project.oauth.github.accept_header},
             data={
                 "client_id": settings.GITHUB_CLIENT_ID,
                 "client_secret": settings.GITHUB_CLIENT_SECRET,
                 "code": code,
-                "redirect_uri": f"{settings.APP_BASE_URL}/api/v1/auth/oauth/github/callback",
+                "redirect_uri": redirect_uri,
             },
         )
         if token_res.status_code != 200:
             raise BadRequestError("Failed to exchange GitHub auth code.")
         access_token = token_res.json().get("access_token")
-        headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+        headers = {"Authorization": f"Bearer {access_token}", "Accept": project.oauth.github.accept_header}
 
-        # Fetch user profile
-        user_res = await client.get(GITHUB_USER_URL, headers=headers)
+        user_res = await client.get(project.oauth.github.user_url, headers=headers)
         user_data = user_res.json()
 
-        # GitHub may not expose email in profile; fetch separately
         email: str | None = user_data.get("email")
         if not email:
-            emails_res = await client.get(GITHUB_EMAIL_URL, headers=headers)
+            emails_res = await client.get(project.oauth.github.emails_url, headers=headers)
             emails = emails_res.json()
             primary = next(
                 (e for e in emails if e.get("primary") and e.get("verified")), None

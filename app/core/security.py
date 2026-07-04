@@ -6,10 +6,8 @@ from typing import Any
 import bcrypt
 from jose import JWTError, jwt
 
-from app.config import settings
+from app.config import project, settings
 from app.lib.redis import set_with_ttl, get_value
-
-ALGORITHM = "HS256"
 
 
 # ── Password ──────────────────────────────────────────────────────────
@@ -34,34 +32,34 @@ def verify_password(plain: str, hashed: str) -> bool:
 def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> str:
     payload: dict[str, Any] = {
         "sub": subject,
-        "type": "access",
+        "type": project.jwt.access_token_type,
         "iat": datetime.now(UTC),
         "exp": datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     }
     if extra:
         payload.update(extra)
-    return jwt.encode(payload, settings.APP_SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(payload, settings.APP_SECRET_KEY, algorithm=project.jwt.algorithm)
 
 
 def create_refresh_token(subject: str) -> str:
     payload: dict[str, Any] = {
         "sub": subject,
-        "type": "refresh",
+        "type": project.jwt.refresh_token_type,
         "iat": datetime.now(UTC),
         "exp": datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
     }
-    return jwt.encode(payload, settings.APP_SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(payload, settings.APP_SECRET_KEY, algorithm=project.jwt.algorithm)
 
 
 def decode_token(token: str) -> dict[str, Any]:
     """Raises JWTError on invalid / expired tokens."""
-    return jwt.decode(token, settings.APP_SECRET_KEY, algorithms=[ALGORITHM])
+    return jwt.decode(token, settings.APP_SECRET_KEY, algorithms=[project.jwt.algorithm])
 
 
 def verify_access_token(token: str) -> str:
     """Returns user_id or raises JWTError."""
     payload = decode_token(token)
-    if payload.get("type") != "access":
+    if payload.get("type") != project.jwt.access_token_type:
         raise JWTError("Not an access token")
     sub: str = payload["sub"]
     return sub
@@ -74,7 +72,7 @@ async def verify_refresh_token(token: str) -> str:
         raise JWTError("Token has been revoked")
 
     payload = decode_token(token)
-    if payload.get("type") != "refresh":
+    if payload.get("type") != project.jwt.refresh_token_type:
         raise JWTError("Not a refresh token")
     sub: str = payload["sub"]
     return sub
@@ -124,7 +122,7 @@ async def is_token_blacklisted(token: str) -> bool:
 # ── One-time tokens (email verification, invites, password reset) ─────
 
 
-def generate_secure_token(nbytes: int = 32) -> str:
+def generate_secure_token(nbytes: int = project.secure_token_bytes) -> str:
     return secrets.token_urlsafe(nbytes)
 
 

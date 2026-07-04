@@ -10,6 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import project
 from app.core.exceptions import ForbiddenError, NotFoundError, UnauthorizedError
 from app.db.session import get_db
 from app.models.membership import MemberRole, Membership
@@ -108,14 +109,8 @@ def require_org_role(*roles: MemberRole):
     """Factory: returns a dependency that enforces a minimum role."""
 
     async def _check(membership: OrgMember) -> Membership:
-        role_rank = {
-            MemberRole.VIEWER: 0,
-            MemberRole.MEMBER: 1,
-            MemberRole.ADMIN: 2,
-            MemberRole.OWNER: 3,
-        }
-        required = max(role_rank[r] for r in roles)
-        if role_rank[membership.role] < required:
+        required = max(project.role_rank[r.name] for r in roles)
+        if project.role_rank[membership.role.name] < required:
             raise ForbiddenError("You do not have sufficient permissions.")
         return membership
 

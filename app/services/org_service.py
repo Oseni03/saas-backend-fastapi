@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 from slugify import slugify
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import project
 from app.core.exceptions import BadRequestError, ConflictError, ForbiddenError, NotFoundError
 from app.core.security import generate_secure_token, hash_token
 from app.lib.logger import logger
@@ -170,7 +171,7 @@ class OrganizationService:
             token=hash_token(raw_token),
             invited_by_id=actor.id,
             status=InvitationStatus.PENDING,
-            expires_at=datetime.now(UTC) + timedelta(days=7),
+            expires_at=datetime.now(UTC) + timedelta(days=project.expiry.invitation_days),
         )
         await self.inv_repo.create(invitation)
 

@@ -9,17 +9,15 @@ from collections.abc import Awaitable, Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.config import project
 from app.lib.logger import logger
-
-# Paths to skip logging (health checks would spam logs)
-_SKIP_PATHS = {"/api/v1/health", "/api/v1/ready", "/favicon.ico"}
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        if request.url.path in _SKIP_PATHS:
+        if request.url.path in project.logging.ignore_paths:
             return await call_next(request)
 
         start = time.perf_counter()

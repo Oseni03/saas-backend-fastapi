@@ -9,52 +9,31 @@ Usage:
         raise PaymentRequiredError("Upgrade to invite more members.")
 """
 
-from dataclasses import dataclass
-
+from app.config import project
 from app.core.exceptions import PaymentRequiredError
 from app.models.organization import PlanTier
 
 
-@dataclass(frozen=True)
 class PlanLimits:
-    max_members: int | None       # None = unlimited
+    max_members: int | None
     max_projects: int | None
     audit_log_retention_days: int
     mfa_required: bool
     sso_enabled: bool
     priority_support: bool
 
+    def __init__(self, plan: PlanTier) -> None:
+        entry = getattr(project.plan_limits, plan.name)
+        self.max_members = entry.max_members
+        self.max_projects = entry.max_projects
+        self.audit_log_retention_days = entry.audit_log_retention_days
+        self.mfa_required = entry.mfa_required
+        self.sso_enabled = entry.sso_enabled
+        self.priority_support = entry.priority_support
+
     @classmethod
     def for_plan(cls, plan: PlanTier) -> "PlanLimits":
-        return _PLAN_LIMITS[plan]
-
-
-_PLAN_LIMITS: dict[PlanTier, PlanLimits] = {
-    PlanTier.FREE: PlanLimits(
-        max_members=5,
-        max_projects=3,
-        audit_log_retention_days=7,
-        mfa_required=False,
-        sso_enabled=False,
-        priority_support=False,
-    ),
-    PlanTier.PRO: PlanLimits(
-        max_members=50,
-        max_projects=None,
-        audit_log_retention_days=90,
-        mfa_required=False,
-        sso_enabled=False,
-        priority_support=True,
-    ),
-    PlanTier.ENTERPRISE: PlanLimits(
-        max_members=None,
-        max_projects=None,
-        audit_log_retention_days=365,
-        mfa_required=True,
-        sso_enabled=True,
-        priority_support=True,
-    ),
-}
+        return cls(plan)
 
 
 def assert_member_limit(plan: PlanTier, current_count: int) -> None:

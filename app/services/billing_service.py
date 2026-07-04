@@ -20,15 +20,13 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.config import project, settings
 from app.core.exceptions import BadRequestError, NotFoundError
 from app.lib.logger import logger
 from app.lib.ulid import new_ulid
 from app.models.organization import Organization, PlanTier
 from app.models.subscription import Subscription, SubscriptionStatus
 from app.repositories.org_repo import OrganizationRepository
-
-PAYSTACK_BASE = "https://api.paystack.co"
 
 PLAN_CODE_MAP: dict[PlanTier, str] = {
     PlanTier.PRO: settings.PAYSTACK_PRO_PLAN_CODE,
@@ -73,7 +71,7 @@ class BillingService:
 
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"{PAYSTACK_BASE}/transaction/initialize",
+                f"{project.billing.paystack_api_base_url}/transaction/initialize",
                 headers=_headers(),
                 json={
                     "email": user_email,
@@ -103,7 +101,7 @@ class BillingService:
         """
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                f"{PAYSTACK_BASE}/transaction/verify/{reference}",
+                f"{project.billing.paystack_api_base_url}/transaction/verify/{reference}",
                 headers=_headers(),
             )
             resp.raise_for_status()
@@ -155,7 +153,7 @@ class BillingService:
 
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"{PAYSTACK_BASE}/subscription/disable",
+                f"{project.billing.paystack_api_base_url}/subscription/disable",
                 headers=_headers(),
                 json={"code": sub.paystack_sub_code, "token": sub.paystack_plan_code},
             )
@@ -185,10 +183,11 @@ class BillingService:
         Verify Paystack HMAC-SHA512 signature, then dispatch to event handlers.
         Paystack sends X-Paystack-Signature header.
         """
+        hash_func = getattr(hashlib, project.billing.webhook_hmac_algorithm)
         expected = hmac.new(
             settings.PAYSTACK_WEBHOOK_SECRET.encode(),
             payload,
-            hashlib.sha512,
+            hash_func,
         ).hexdigest()
 
         if not hmac.compare_digest(expected, signature):
@@ -304,7 +303,7 @@ class BillingService:
         period_end = (
             datetime.fromisoformat(next_payment.replace("Z", "+00:00"))
             if next_payment
-            else now + relativedelta(months=1)
+            else now + relativedelta(months=project.billing.next_billing_month_offset)
         )
 
         result = await self.db.execute(
