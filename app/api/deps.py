@@ -18,7 +18,7 @@ from app.models.organization import Organization
 from app.models.user import User
 from app.repositories.org_repo import OrganizationRepository
 from app.repositories.user_repo import UserRepository
-from app.core.security import verify_access_token
+from app.core.security import verify_access_token, verify_mfa_pending_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -51,6 +51,29 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def get_mfa_pending_user(
+    db: DBDep,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> User:
+    if not credentials:
+        raise UnauthorizedError()
+
+    try:
+        user_id = verify_mfa_pending_token(credentials.credentials)
+    except JWTError as exc:
+        raise UnauthorizedError("Invalid or expired MFA pending token.") from exc
+
+    user = await UserRepository(db).get_by_id(user_id)
+    if not user:
+        raise UnauthorizedError("User not found.")
+    if not user.is_active:
+        raise UnauthorizedError("Account is inactive.")
+    return user
+
+
+MfaPendingUser = Annotated[User, Depends(get_mfa_pending_user)]
 
 
 async def get_verified_user(current_user: CurrentUser) -> User:

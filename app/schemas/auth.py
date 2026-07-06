@@ -32,6 +32,11 @@ class TokenPair(BaseModel):
     token_type: str = project.token_type
 
 
+class MfaPendingResponse(BaseModel):
+    mfa_pending: str
+    expires_in: int
+
+
 class SignupResponse(BaseModel):
     user: UserResponse
     access_token: str

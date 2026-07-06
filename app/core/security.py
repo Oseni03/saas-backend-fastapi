@@ -29,6 +29,25 @@ def verify_password(plain: str, hashed: str) -> bool:
 # ── JWT ───────────────────────────────────────────────────────────────
 
 
+def create_mfa_pending_token(subject: str) -> str:
+    payload: dict[str, Any] = {
+        "sub": subject,
+        "type": project.jwt.mfa_pending_token_type,
+        "iat": datetime.now(UTC),
+        "exp": datetime.now(UTC) + timedelta(seconds=project.mfa.pending_expires_in_seconds),
+    }
+    return jwt.encode(payload, settings.APP_SECRET_KEY, algorithm=project.jwt.algorithm)
+
+
+def verify_mfa_pending_token(token: str) -> str:
+    """Returns user_id or raises JWTError."""
+    payload = decode_token(token)
+    if payload.get("type") != project.jwt.mfa_pending_token_type:
+        raise JWTError("Not an MFA pending token")
+    sub: str = payload["sub"]
+    return sub
+
+
 def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> str:
     payload: dict[str, Any] = {
         "sub": subject,

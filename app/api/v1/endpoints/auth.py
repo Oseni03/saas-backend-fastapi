@@ -5,6 +5,7 @@ from app.lib.email import send_verification_email
 from app.lib.logger import logger
 from app.schemas.auth import (
     LoginRequest,
+    MfaPendingResponse,
     PasswordResetConfirm,
     PasswordResetRequest,
     RefreshRequest,
@@ -40,9 +41,9 @@ def _send_verification_email(to: str, full_name: str | None, token: str) -> None
         logger.exception("Failed to send verification email", to=to)
 
 
-@router.post("/login", response_model=TokenPair)
-async def login(payload: LoginRequest, db: DBDep) -> TokenPair:
-    """Authenticate with email + password. Returns access + refresh tokens."""
+@router.post("/login", response_model=TokenPair | MfaPendingResponse)
+async def login(payload: LoginRequest, db: DBDep) -> TokenPair | MfaPendingResponse:
+    """Authenticate with email + password. Returns tokens or MFA pending response."""
     return await AuthService(db).login(payload)
 
 

@@ -52,6 +52,7 @@ def assert_feature_available(plan: PlanTier, feature: str) -> None:
     limits = PlanLimits.for_plan(plan)
     feature_map = {
         "sso": limits.sso_enabled,
+        "mfa": limits.mfa_required,
         "priority_support": limits.priority_support,
     }
     if feature in feature_map and not feature_map[feature]:

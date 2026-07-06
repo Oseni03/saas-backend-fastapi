@@ -1,20 +1,16 @@
-"""
-MFA (TOTP) endpoints.
+"""MFA (TOTP) endpoints.
 
 Flow:
-  1. POST /mfa/setup      → returns otpauth URI + QR seed
-  2. POST /mfa/verify     → confirm the TOTP code, enables MFA on the account
-  3. POST /mfa/disable    → disable MFA (requires current TOTP code)
+  1. POST /mfa/setup      → generates secret, returns otpauth URI
+  2. POST /mfa/verify     → confirms TOTP code, activates MFA
+  3. POST /mfa/disable    → disables MFA (requires current TOTP code)
   4. POST /mfa/validate   → called during login when MFA is active
 """
-
-import base64
-import io
 
 import pyotp
 from fastapi import APIRouter, status
 
-from app.api.deps import CurrentUser, DBDep
+from app.api.deps import CurrentUser, DBDep, MfaPendingUser
 from app.config import project
 from app.core.exceptions import BadRequestError, UnauthorizedError
 from app.core.security import verify_password
@@ -29,7 +25,7 @@ def _get_totp(secret: str, email: str) -> pyotp.TOTP:
 
 
 @router.post("/setup")
-async def setup_mfa(current_user: CurrentUser) -> dict:
+async def setup_mfa(current_user: CurrentUser, db: DBDep) -> dict:
     """Generate a new MFA secret and return the provisioning URI."""
     if current_user.mfa_enabled:
         raise BadRequestError("MFA is already enabled on your account.")
@@ -40,12 +36,13 @@ async def setup_mfa(current_user: CurrentUser) -> dict:
 
     # Temporarily store the unconfirmed secret (user must verify before it's active)
     # In a real impl you'd cache this in Redis with a TTL instead of the DB
-    current_user.mfa_secret = secret  # stored plain until verified
+    current_user.mfa_secret = secret
+    await UserRepository(db).save(current_user)
 
     return {
         "secret": secret,
         "otpauth_uri": uri,
-        "message": "Scan the QR code or enter the secret in your authenticator app, "
+        "message": "Enter the secret in your authenticator app, "
                    "then call /mfa/verify with a valid code.",
     }
 
@@ -82,22 +79,22 @@ async def disable_mfa(code: str, current_user: CurrentUser, db: DBDep) -> None:
 
 
 @router.post("/validate")
-async def validate_mfa_code(code: str, current_user: CurrentUser) -> TokenPair:
+async def validate_mfa_code(code: str, user: MfaPendingUser) -> TokenPair:
     """
     Validate a TOTP code during login.
-    Frontend calls this after obtaining a short-lived 'mfa_pending' token.
-    Returns a full access token on success.
+    Frontend calls this after obtaining a short-lived 'mfa_pending' token
+    from /auth/login. Returns a full token pair on success.
     """
-    if not current_user.mfa_enabled or not current_user.mfa_secret:
+    if not user.mfa_enabled or not user.mfa_secret:
         raise BadRequestError("MFA is not enabled on your account.")
 
-    totp = _get_totp(current_user.mfa_secret, current_user.email)
+    totp = _get_totp(user.mfa_secret, user.email)
     if not totp.verify(code, valid_window=project.mfa.valid_window):
         raise UnauthorizedError("Invalid or expired TOTP code.")
 
     from app.core.security import create_access_token, create_refresh_token
     return TokenPair(
-        access_token=create_access_token(current_user.id),
-        refresh_token=create_refresh_token(current_user.id),
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(user.id),
         token_type=project.token_type,
     )

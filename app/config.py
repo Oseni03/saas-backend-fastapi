@@ -207,6 +207,7 @@ class JwtConfig:
     algorithm: str = "HS256"
     access_token_type: str = "access"
     refresh_token_type: str = "refresh"
+    mfa_pending_token_type: str = "mfa_pending"
 
 
 @dataclass(frozen=True)

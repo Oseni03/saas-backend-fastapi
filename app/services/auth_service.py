@@ -16,6 +16,7 @@ from app.core.exceptions import (
 )
 from app.core.security import (
     create_access_token,
+    create_mfa_pending_token,
     create_refresh_token,
     generate_secure_token,
     hash_password,
@@ -32,6 +33,7 @@ from app.models.user import OAuthProvider, User
 from app.repositories.user_repo import UserRepository
 from app.schemas.auth import (
     LoginRequest,
+    MfaPendingResponse,
     RegisterRequest,
     TokenPair,
 )
@@ -66,7 +68,7 @@ class AuthService:
 
     # ── Login ─────────────────────────────────────────────────────────
 
-    async def login(self, payload: LoginRequest) -> TokenPair:
+    async def login(self, payload: LoginRequest) -> TokenPair | MfaPendingResponse:
         user = await self.user_repo.get_by_email(payload.email)
         if not user or not user.hashed_password:
             raise UnauthorizedError("Invalid email or password.")
@@ -74,6 +76,13 @@ class AuthService:
             raise UnauthorizedError("Invalid email or password.")
         if not user.is_active:
             raise UnauthorizedError("Your account has been deactivated.")
+
+        if user.mfa_enabled:
+            logger.info("auth.login.mfa_pending", user_id=user.id)
+            return MfaPendingResponse(
+                mfa_pending=create_mfa_pending_token(user.id),
+                expires_in=project.mfa.pending_expires_in_seconds,
+            )
 
         logger.info("auth.login", user_id=user.id)
         return self._issue_tokens(user.id)
