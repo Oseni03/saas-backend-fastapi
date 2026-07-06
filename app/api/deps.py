@@ -42,7 +42,7 @@ async def get_current_user(
     except JWTError as exc:
         raise UnauthorizedError("Invalid or expired token.") from exc
 
-    user = await UserRepository(db).get_by_id(user_id)
+    user = await UserRepository(db).get_by_id_with_orgs(user_id)
     if not user:
         raise UnauthorizedError("User not found.")
     if not user.is_active:
@@ -65,7 +65,7 @@ async def get_mfa_pending_user(
     except JWTError as exc:
         raise UnauthorizedError("Invalid or expired MFA pending token.") from exc
 
-    user = await UserRepository(db).get_by_id(user_id)
+    user = await UserRepository(db).get_by_id_with_orgs(user_id)
     if not user:
         raise UnauthorizedError("User not found.")
     if not user.is_active:

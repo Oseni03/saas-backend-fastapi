@@ -176,6 +176,7 @@ async def test_login_returns_mfa_pending_when_mfa_enabled(client: AsyncClient) -
     assert "expires_in" in data
     assert data["expires_in"] == 300
     assert "access_token" not in data
+    assert "user" not in data
 
 
 @pytest.mark.asyncio
@@ -277,3 +278,6 @@ async def test_login_without_mfa_returns_tokens_directly(client: AsyncClient) ->
     assert "access_token" in data
     assert "refresh_token" in data
     assert "mfa_pending" not in data
+    assert "user" in data
+    assert "organizations" in data["user"]
+    assert data["user"]["organizations"] == []

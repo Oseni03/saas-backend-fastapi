@@ -37,6 +37,10 @@ class MfaPendingResponse(BaseModel):
     expires_in: int
 
 
+class LoginResponse(TokenPair):
+    user: UserResponse
+
+
 class SignupResponse(BaseModel):
     user: UserResponse
     access_token: str

@@ -3,6 +3,7 @@ Auth service — registration, login, token refresh, email verification,
 password reset, and OAuth flows.
 """
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +40,12 @@ from app.schemas.auth import (
 )
 
 
+@dataclass
+class LoginSuccess:
+    token_pair: TokenPair
+    user: User
+
+
 class AuthService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -68,7 +75,7 @@ class AuthService:
 
     # ── Login ─────────────────────────────────────────────────────────
 
-    async def login(self, payload: LoginRequest) -> TokenPair | MfaPendingResponse:
+    async def login(self, payload: LoginRequest) -> LoginSuccess | MfaPendingResponse:
         user = await self.user_repo.get_by_email(payload.email)
         if not user or not user.hashed_password:
             raise UnauthorizedError("Invalid email or password.")
@@ -84,8 +91,12 @@ class AuthService:
                 expires_in=project.mfa.pending_expires_in_seconds,
             )
 
+        user_with_orgs = await self.user_repo.get_by_id_with_orgs(user.id)
         logger.info("auth.login", user_id=user.id)
-        return self._issue_tokens(user.id)
+        return LoginSuccess(
+            token_pair=self._issue_tokens(user.id),
+            user=user_with_orgs,
+        )
 
     # ── Refresh ───────────────────────────────────────────────────────
 

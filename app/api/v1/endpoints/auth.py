@@ -5,6 +5,7 @@ from app.lib.email import send_verification_email
 from app.lib.logger import logger
 from app.schemas.auth import (
     LoginRequest,
+    LoginResponse,
     MfaPendingResponse,
     PasswordResetConfirm,
     PasswordResetRequest,
@@ -16,7 +17,7 @@ from app.schemas.auth import (
     LogoutRequest,
 )
 from app.schemas.user import UserResponse
-from app.services.auth_service import AuthService
+from app.services.auth_service import AuthService, LoginSuccess
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -41,10 +42,18 @@ def _send_verification_email(to: str, full_name: str | None, token: str) -> None
         logger.exception("Failed to send verification email", to=to)
 
 
-@router.post("/login", response_model=TokenPair | MfaPendingResponse)
-async def login(payload: LoginRequest, db: DBDep) -> TokenPair | MfaPendingResponse:
-    """Authenticate with email + password. Returns tokens or MFA pending response."""
-    return await AuthService(db).login(payload)
+@router.post("/login", response_model=LoginResponse | MfaPendingResponse)
+async def login(payload: LoginRequest, db: DBDep) -> LoginResponse | MfaPendingResponse:
+    """Authenticate with email + password. Returns tokens+user or MFA pending response."""
+    result = await AuthService(db).login(payload)
+    if isinstance(result, LoginSuccess):
+        return LoginResponse(
+            user=UserResponse.model_validate(result.user),
+            access_token=result.token_pair.access_token,
+            refresh_token=result.token_pair.refresh_token,
+            token_type=result.token_pair.token_type,
+        )
+    return result
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
