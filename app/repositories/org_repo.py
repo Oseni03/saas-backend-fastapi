@@ -33,6 +33,7 @@ class OrganizationRepository:
     async def list_for_user(self, user_id: str) -> list[Organization]:
         result = await self.db.execute(
             select(Organization)
+            .options(selectinload(Organization.memberships))
             .join(Membership, Membership.organization_id == Organization.id)
             .where(Membership.user_id == user_id)
         )

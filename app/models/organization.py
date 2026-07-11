@@ -50,5 +50,9 @@ class Organization(Base, TimestampMixin):
     )
     audit_logs: Mapped[list["AuditLog"]] = relationship(back_populates="organization")
 
+    @property
+    def member_count(self) -> int:
+        return len(self.memberships)
+
     def __repr__(self) -> str:
         return f"<Organization id={self.id} slug={self.slug}>"
